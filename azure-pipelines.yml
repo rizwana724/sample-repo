@@ -1,7 +1,47 @@
-# Starter pipeline
-# Start with a minimal pipeline that you can customize to build and deploy your code.
-# Add steps that build, run tests, deploy, and more:
-# https://aka.ms/yaml
+# ASP.NET Core
+# Build and test ASP.NET Core projects targeting .NET Core.
+# Add steps that run tests, create a NuGet package, deploy, and more:
+# https://docs.microsoft.com/azure/devops/pipelines/languages/dotnet-core
+
+parameters:
+- name: Environment
+  values: 
+    - DIT
+    - SIT
+    - UAT
+    - PROD
+
+- name: DIT1
+  type: boolean
+  default: false
+
+- name: DIT2
+  type: boolean
+  default: false
+
+- name: SIT1
+  type: boolean
+  default: false
+
+- name: SIT2
+  type: boolean
+  default: false
+
+- name: UAT1
+  type: boolean
+  default: false
+
+- name: UAT2
+  type: boolean
+  default: false
+
+- name: PROD1
+  type: boolean
+  default: false
+
+- name: PROD2
+  type: boolean
+  default: false
 
 trigger:
 - main
@@ -9,11 +49,50 @@ trigger:
 pool:
   vmImage: ubuntu-latest
 
-steps:
-- script: echo Hello, world!
-  displayName: 'Run a one-line script'
+variables:
+  buildConfiguration: 'Release'
+  envvar : ${{parameters.Environment}}
+  
+stages:
+- stage: CI
+  displayName: CI-Stage
+  jobs:
+  - job: build
+    displayName: Build 
+    steps:
+    - script: dotnet restore --interactive
 
-- script: |
-    echo Add other tasks to build, test, and deploy your project.
-    echo See https://aka.ms/yaml
-  displayName: 'Run a multi-line script'
+    - script: dotnet build --no-restore --configuration $(buildConfiguration)
+      displayName: 'dotnet build $(buildConfiguration)'
+
+    - script: dotnet publish --no-build --configuration $(buildConfiguration)
+      displayName: 'dotnet Publish $(buildConfiguration)'
+    - task: DotNetCoreCLI@2
+      inputs:
+       command: publish
+       publishWebProjects: True
+       arguments: '--configuration $(buildConfiguration) --output $(Build.ArtifactStagingDirectory)'
+       zipAfterPublish: True
+    
+    - task: PublishBuildArtifacts@1
+      inputs:
+       PathtoPublish: '$(Build.ArtifactStagingDirectory)'
+       ArtifactName: 'drop'
+       publishLocation: 'Container'
+
+- stage: Deploy
+
+  displayName: CD_
+  jobs:
+   - job: Deploy1
+     displayName: Deploy
+   - ${{ each parameter in parameters }}:
+   - ${{ if eq('${{ parameter.Value }}', 'true') }}:
+  environment:
+    name: $(envvar)
+    resourceType: VirtualMachine
+    tags: ${{ parameter.Value }}
+  strategy:      
+     runOnce:        
+       deploy:
+        steps:
